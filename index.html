@@ -190,8 +190,8 @@
 <div class="toast" id="toast"></div>
 
 <script>
-  const BLOB_ID = '019c5218-117a-7d43-8adf-b6593b4372a5';
-  const API_URL = `https://jsonblob.com/api/jsonBlob/${BLOB_ID}`;
+  const OBJECT_ID = 'ff8081819782e69e019c5223b2b36962';
+  const API_URL = `https://api.restful-api.dev/objects/${OBJECT_ID}`;
   const POLL_INTERVAL = 5000; // Refresh every 5 seconds
 
   const grid = document.getElementById('codesGrid');
@@ -203,7 +203,7 @@
     try {
       const res = await fetch(API_URL, { cache: 'no-store' });
       const data = await res.json();
-      return data.codes || [];
+      return data.data?.codes || [];
     } catch (e) {
       console.error('Error loading codes:', e);
       return currentCodes;
@@ -215,7 +215,7 @@
       const res = await fetch(API_URL, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codes })
+        body: JSON.stringify({ name: 'sidance-codes', data: { codes } })
       });
       if (!res.ok) throw new Error('Save failed');
       return true;
