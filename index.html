@@ -190,17 +190,36 @@
 <div class="toast" id="toast"></div>
 
 <script>
-  const STORAGE_KEY = 'sidance_codes';
+  const BLOB_ID = '019c5218-117a-7d43-8adf-b6593b4372a5';
+  const API_URL = `https://jsonblob.com/api/jsonBlob/${BLOB_ID}`;
+  const POLL_INTERVAL = 3000; // Refresh every 3 seconds
+
   const grid = document.getElementById('codesGrid');
   const countEl = document.getElementById('codeCount');
+  let currentCodes = [];
 
-  function loadCodes() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
-    catch { return []; }
+  async function loadCodes() {
+    try {
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      return data.codes || [];
+    } catch (e) {
+      console.error('Error loading codes:', e);
+      return currentCodes;
+    }
   }
 
-  function saveCodes(codes) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(codes));
+  async function saveCodes(codes) {
+    try {
+      await fetch(API_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codes })
+      });
+    } catch (e) {
+      console.error('Error saving codes:', e);
+      showToast('שגיאה בשמירה, נסו שוב');
+    }
   }
 
   function showToast(msg) {
@@ -210,38 +229,45 @@
     setTimeout(() => t.classList.remove('show'), 1800);
   }
 
-  function copyCode(code, card) {
-    navigator.clipboard.writeText(code).then(() => {
-      const codes = loadCodes();
+  async function copyCode(code, card) {
+    try {
+      await navigator.clipboard.writeText(code);
+      const codes = await loadCodes();
       const item = codes.find(c => c.code === code);
-      if (item) { item.copied = true; saveCodes(codes); }
+      if (item) {
+        item.copied = true;
+        await saveCodes(codes);
+      }
       card.classList.add('copied');
       const btn = card.querySelector('.copy-btn');
       if (btn) btn.textContent = 'הועתק!';
       setTimeout(() => { if (btn) btn.textContent = 'העתק'; }, 1500);
       showToast('הקוד הועתק! ✓');
-    });
+      render(codes);
+    } catch (e) {
+      showToast('שגיאה בהעתקה');
+    }
   }
 
-  function deleteCode(code) {
-    let codes = loadCodes();
+  async function deleteCode(code) {
+    let codes = await loadCodes();
     codes = codes.filter(c => c.code !== code);
-    saveCodes(codes);
-    render();
+    await saveCodes(codes);
+    render(codes);
     showToast('הקוד נמחק');
   }
 
-  function addCode(code) {
+  async function addCode(code) {
     code = code.trim();
     if (!code) return;
-    const codes = loadCodes();
+    const codes = await loadCodes();
     if (codes.some(c => c.code === code)) {
       showToast('הקוד כבר קיים!');
       return;
     }
     codes.push({ code, copied: false, addedAt: Date.now() });
-    saveCodes(codes);
-    render();
+    await saveCodes(codes);
+    render(codes);
     showToast('קוד נוסף בהצלחה!');
   }
 
@@ -287,12 +313,16 @@
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && input.value.trim()) {
         addCode(input.value);
+        input.value = '';
       }
     });
 
     input.addEventListener('paste', (e) => {
       setTimeout(() => {
-        if (input.value.trim()) addCode(input.value);
+        if (input.value.trim()) {
+          addCode(input.value);
+          input.value = '';
+        }
       }, 50);
     });
 
@@ -300,15 +330,23 @@
     return card;
   }
 
-  function render() {
-    const codes = loadCodes();
+  function render(codes) {
+    currentCodes = codes;
     grid.innerHTML = '';
     countEl.textContent = codes.length;
+    codes.sort((a, b) => a.addedAt - b.addedAt);
     codes.forEach(item => grid.appendChild(createCodeCard(item)));
     grid.appendChild(createEmptyCard());
   }
 
-  render();
+  // Initial load
+  loadCodes().then(render);
+
+  // Poll for updates every 3 seconds (sync with other users)
+  setInterval(async () => {
+    const codes = await loadCodes();
+    render(codes);
+  }, POLL_INTERVAL);
 </script>
 </body>
 </html>
